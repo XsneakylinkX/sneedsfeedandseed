@@ -1,0 +1,70 @@
+#define _XOPEN_SOURCE 700
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <sys/wait.h>
+
+#define check_error(expr, usrMsg) \
+    do                            \
+    {                             \
+        if (!(expr))              \
+        {                         \
+            perror(usrMsg);       \
+            exit(EXIT_FAILURE);   \
+        }                         \
+    } while (0)
+
+#define RD_END (0)
+#define WR_END (1)
+
+int main(int argc, char const *argv[])
+{
+    check_error(argc == 2, "args");
+
+    int c2p[2];
+    check_error(pipe(c2p) != -1, "pipe");
+    pid_t childPid = fork();
+    check_error(childPid != -1, "fork");
+
+    if (childPid == 0) // child
+    {
+        close(c2p[RD_END]);
+        check_error(dup2(c2p[WR_END], STDOUT_FILENO) != -1, "dup2");
+        check_error(execlp("cat", "cat", argv[1], NULL) != -1, "execlp");
+    }
+    else // parent
+    {
+        close(c2p[WR_END]);
+
+        FILE* f = fdopen(c2p[RD_END], "r");
+        check_error(f != NULL, "fdopen");
+
+        char *line = NULL;
+        size_t n = 0;
+
+        int brojLinija = 0;
+        int maxDuzina = 0;
+        while(getline(&line, &n, f) > 0)
+        {
+            brojLinija++;
+            if(strlen(line) > maxDuzina)
+                maxDuzina = strlen(line);
+        }
+
+        printf("%d %d\n", brojLinija, maxDuzina);
+
+        free(line);
+        fclose(f);
+        close(c2p[RD_END]);
+
+        
+    }
+    exit(EXIT_SUCCESS);
+}

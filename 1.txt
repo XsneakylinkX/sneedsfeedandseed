@@ -1,0 +1,43 @@
+#define _XOPEN_SOURCE 700
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <ftw.h>
+
+#define check_error(expr, usrMsg) \
+    do                            \
+    {                             \
+        if (!(expr))              \
+        {                         \
+            perror(usrMsg);       \
+            exit(EXIT_FAILURE);   \
+        }                         \
+    } while (0)
+
+int processFile(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+    if (S_ISREG(sb->st_mode) && 
+        ((sb->st_mode & S_IXUSR) || (sb->st_mode & S_IXGRP) || (sb->st_mode & S_IXOTH)))
+        printf("%s\n", fpath + ftwbuf->base);
+    return 0;
+}
+
+int main(int argc, char const *argv[])
+{
+    check_error(argc == 2, "args");
+
+    struct stat finfo;
+    check_error(stat(argv[1], &finfo) != -1, "stat");
+    check_error(S_ISDIR(finfo.st_mode), "not dir");
+
+    check_error(nftw(argv[1], processFile, 20, 0) != -1, "nftw");
+
+    return 0;
+}
